@@ -1,0 +1,7 @@
+./DB
+./general
+*.csv
+*.pdf
+*.doc
+*.docx
+*.dat

@@ -1,0 +1,129 @@
+SELECT *
+FROM
+(SELECT 
+*
+FROM
+(SELECT
+SUB5.client_id,
+SUB5.action_type,
+SUB5.created_at,
+FROM 
+(SELECT 
+*,
+(SUB4.lead_key_cnt2 - SUB4.action_type) as key_cnt2
+FROM
+(SELECT 
+*,
+    LEAD(SUB3.action_type) OVER ( 
+    ORDER BY SUB3.created_at ASC) AS lead_key_cnt2
+FROM 
+(SELECT 
+*,
+(SUB2.lead_key_cnt1 - SUB2.client_id) as key_cnt1
+FROM
+(SELECT 
+*,
+    LEAD(SUB1.client_id) OVER ( 
+    ORDER BY SUB1.created_at ASC) AS lead_key_cnt1
+FROM
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) 
+
+as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+ORDER BY
+created_at) as SUB1
+ORDER BY
+SUB1.created_at) as SUB2
+ORDER BY
+SUB2.created_at) as SUB3
+ORDER BY
+SUB3.created_at) as SUB4
+ORDER BY
+SUB4.created_at ) as SUB5
+WHERE
+time_btwn_nxt <=10 AND 
+key_cnt1 = 0 AND 
+key_cnt2 !=0 
+ORDER BY
+SUB5.created_at ) AS SUB10
+
+UNION ALL  
+
+SELECT 
+*
+FROM
+(SELECT
+SUB8.client_id,
+SUB8.action_type,
+SUB8.created_at
+FROM
+(SELECT 
+*
+FROM
+(SELECT
+SUB6.next_action
+FROM
+(SELECT
+SUB5.client_id,
+SUB5.action_type,
+SUB5.created_at,
+SUB5.next_action,
+SUB5.time_btwn_nxt,
+SUB5.key_cnt1,
+SUB5.key_cnt2,
+FROM 
+(SELECT 
+*,
+(SUB4.lead_key_cnt2 - SUB4.action_type) as key_cnt2
+FROM
+(SELECT 
+*,
+    LEAD(SUB3.action_type) OVER ( 
+    ORDER BY SUB3.created_at ASC) AS lead_key_cnt2
+FROM 
+(SELECT 
+*,
+(SUB2.lead_key_cnt1 - SUB2.client_id) as key_cnt1
+FROM
+(SELECT 
+*,
+    LEAD(SUB1.client_id) OVER ( 
+    ORDER BY SUB1.created_at ASC) AS lead_key_cnt1
+FROM
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+ORDER BY
+created_at) as SUB1
+ORDER BY
+SUB1.created_at) as SUB2
+ORDER BY
+SUB2.created_at) as SUB3
+ORDER BY
+SUB3.created_at) as SUB4
+ORDER BY
+SUB4.created_at ) as SUB5
+WHERE
+time_btwn_nxt <=10 AND 
+key_cnt1 = 0 AND 
+key_cnt2 !=0 
+ORDER BY
+SUB5.created_at) SUB6 ) as SUB7
+LEFT JOIN `test-devim.data.action` ON SUB7.next_action = `test-devim.data.action`.created_at) as SUB8 ) AS SUB9 ) AS SUB11
+ORDER BY 
+SUB11.created_at

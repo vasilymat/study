@@ -1,0 +1,319 @@
+проблема дальше начинается с оконной функцией, которая должна возвращать следующие значение клиента...почему-то не выходит.....
+
+SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id ASC), SUB0.created_at, second) 
+as time_btwn_nxt
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at
+
+Вроде бы разобрался 
+
+SELECT *
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0 
+
+ИТОГ! дублирующиеся значения осталось удалить
+
+SELECT 
+*
+FROM (SELECT 
+SUB4.client_id,
+SUB4.action_type,
+SUB4.created_at
+FROM 
+(SELECT *
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0 ) as SUB4
+
+UNION ALL 
+
+SELECT 
+SUB3.client_id,
+SUB3.action_type,
+SUB3.created_at
+FROM (SELECT 
+*
+FROM
+(SELECT 
+SUB1.next_action
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0) as SUB2
+LEFT JOIN `test-devim.data.action` ON SUB2.next_action = `test-devim.data.action`.created_at) as SUB3) as SUB5
+ORDER BY 
+SUB5.created_at
+
+почти убрал дубликаты и соеденил
+
+SELECT 
+SUB7.client_id,
+SUB7.action_type,
+SUB7.created_at
+FROM
+(SELECT *
+FROM
+(SELECT 
+DISTINCT(SUB5.created_at)
+FROM (SELECT 
+SUB4.client_id,
+SUB4.action_type,
+SUB4.created_at
+FROM 
+(SELECT *
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0 ) as SUB4
+
+UNION ALL 
+
+SELECT 
+SUB3.client_id,
+SUB3.action_type,
+SUB3.created_at
+FROM (SELECT 
+*
+FROM
+(SELECT 
+SUB1.next_action
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0) as SUB2
+LEFT JOIN `test-devim.data.action` ON SUB2.next_action = `test-devim.data.action`.created_at) as SUB3) as SUB5
+ORDER BY 
+SUB5.created_at) as SUB6
+LEFT JOIN `test-devim.data.action` ON SUB6.created_at = `test-devim.data.action`.created_at) as SUB7
+
+ИТОЖНЫЙ ИТОГ!!!!
+
+SELECT 
+SUB7.client_id,
+SUB7.action_type,
+SUB7.created_at
+FROM 
+(SELECT 
+*
+FROM
+(SELECT 
+DISTINCT(SUB5.created_at) as created
+FROM (SELECT 
+SUB4.client_id,
+SUB4.action_type,
+SUB4.created_at
+FROM 
+(SELECT *
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0 ) as SUB4
+
+UNION ALL 
+
+SELECT 
+SUB3.client_id,
+SUB3.action_type,
+SUB3.created_at
+FROM (SELECT 
+*
+FROM
+(SELECT 
+SUB1.next_action
+FROM (SELECT 
+    SUB0.client_id as client_id,
+    SUB0.action_type as action_type,
+    SUB0.created_at as created_at,
+    LEAD(SUB0.created_at) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at ) AS next_action,
+    TIMESTAMP_DIFF(LEAD(SUB0.created_at) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC), SUB0.created_at, second) as time_btwn_nxt,
+    LEAD(SUB0.client_id) OVER ( 
+    ORDER BY SUB0.client_id, SUB0.created_at) - SUB0.client_id  AS key1,
+   LEAD(SUB0.action_type) OVER ( 
+   ORDER BY SUB0.client_id, SUB0.created_at ASC) - SUB0.action_type AS key2
+FROM
+    (SELECT 
+    *
+    FROM
+    `test-devim.data.action`
+    ORDER BY
+        client_id,
+        created_at) as SUB0
+ORDER BY
+SUB0.client_id,
+SUB0.created_at) as SUB1
+WHERE 
+SUB1.time_btwn_nxt <=10 AND 
+SUB1.time_btwn_nxt >= 0 AND
+SUB1.key1 = 0 AND 
+SUB1.key2 !=0) as SUB2
+LEFT JOIN `test-devim.data.action` ON SUB2.next_action = `test-devim.data.action`.created_at) as SUB3) as SUB5
+ORDER BY 
+SUB5.created_at) as SUB6
+LEFT JOIN `test-devim.data.action` ON SUB6.created = `test-devim.data.action`.created_at) as SUB7
+ORDER BY 
+SUB7.created_at

@@ -1,0 +1,480 @@
+ПОПЫТКА 1:
+
+Загружаю данные, проверяю работу кода
+
+SELECT 
+    `test-devim.data.action`.action_type as action_type
+FROM
+    `test-devim.data.action`
+
+Разница между датамаи в секундах 
+
+SELECT 
+    TIMESTAMP_DIFF('2021-01-01 12:00:00', '2021-01-01 12:00:05',second)
+
+получилось сделать оконную функция. добавили новый столбец с датой и временем следующего действия по типу действия!
+
+SELECT 
+    `test-devim.data.action`.client_id,
+    `test-devim.data.action`.action_type,
+    `test-devim.data.action`.created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER (PARTITION BY `test-devim.data.action`.action_type 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action
+FROM
+    `test-devim.data.action`
+
+ИТОГ1-ошибка. Я получил разницу между действиями для каждого типа действия, я могу дальше найти подозрительные действия для одного и того же action_type. а надо разных!
+
+SELECT 
+    `test-devim.data.action`.client_id,
+    `test-devim.data.action`.action_type,
+    `test-devim.data.action`.created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER (PARTITION BY `test-devim.data.action`.action_type 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER (PARTITION BY `test-devim.data.action`.action_type 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second)
+FROM
+    `test-devim.data.action`
+
+ПОПЫТКА 2:
+
+Получилось взять последнее значение 
+SELECT 
+    `test-devim.data.action`.client_id,
+    `test-devim.data.action`.action_type,
+    `test-devim.data.action`.created_at,
+    LAST_VALUE(`test-devim.data.action`.created_at) OVER (PARTITION BY `test-devim.data.action`.action_type 
+    ORDER BY `test-devim.data.action`.action_type desc) AS next_action,
+FROM
+    `test-devim.data.action`
+
+ Теперь просто беру след значение без партишн бай. вычисляю разницу во времени. теперь просто надо взять последнее значение по экшн тайп
+
+SELECT 
+    `test-devim.data.action`.client_id,
+    `test-devim.data.action`.action_type,
+    `test-devim.data.action`.created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second)
+FROM
+    `test-devim.data.action`
+ORDER BY 
+    `test-devim.data.action`.created_at
+
+
+попробую с подзапросом. здесь мелкая ошибка. надо удалить нулевое значение!:
+(WHERE
+название_столбца_где_есть_нул IS NOT NULL)
+
+
+SELECT 
+    SUB1.client_id,
+    SUB1.action_type,
+    SUB1.created_at,
+    LAST_VALUE(SUB1.diff_time) OVER (PARTITION BY SUB1.action_type 
+    ORDER BY SUB1.action_type desc) AS last,
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as diff_time
+FROM
+    `test-devim.data.action`
+) as SUB1
+ORDER BY 
+    SUB1.created_at
+
+задача являетс следующей: 
+как оставить последнее значение для вычисленного времени по action_type?
+для него потом можно легко делать срез по времени меньше 
+
+SELECT 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+ORDER BY 
+    SUB1.created_at
+
+таблица с последними действиями для каждого типа действия (дальше можно сделать джоин с запросом, что выше и оставить только пересекающиеся значения. дальше фильтр по меньше 10. ну и удалить Null, в принципе, конец)
+
+SELECT 
+max(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type
+
+ИТОГ2 - ошибка. соединил две таблицы, как хотел выше. и удалил строки с нулевым значением. ОШбика в том, что в задании просят вывести действия, между которыми меньше 10 секунд интервал, а я вывел только первое действие подозрительное действие из двух.
+
+SELECT 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+FROM 
+(SELECT 
+max(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as SUB2
+LEFT JOIN 
+(SELECT 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB3
+ORDER BY 
+    SUB3.created_at) as SUB4
+    ON SUB2.last_action_time = SUB4.created_at
+WHERE
+time_btwn_nxt IS NOT NULL
+
+ПОПЫТКА 3:
+
+начинаю сначала. начинаю с этой таблицы:
+
+SELECT 
+    `test-devim.data.action`.client_id,
+    `test-devim.data.action`.action_type,
+    `test-devim.data.action`.created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+ORDER BY 
+    `test-devim.data.action`.created_at
+
+из таблицы выше надо вытащить две таблицы: одна с первым значением, одна с последним
+
+таблица с последним значением (здесь надо убрать последнее значение, либо потом is null сделать):
+SELECT 
+max(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type
+
+таблица с первым згначением (здесь надо убрать первое значение!!!):
+SELECT 
+min(created_at) as first_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type
+
+соединяю их (теперь у меня таблица с первым временем и последним временем для каждого действия):
+
+Select
+last_action_time
+from
+(SELECT 
+max(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as sub_left
+
+UNION ALL
+
+SELECT
+last_action_time
+from 
+(SELECT 
+min(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as sub_right
+ORDER BY 
+last_action_time
+
+ИТОГ3 - ошибка. здесь лишнее первое значение. а так всё ок . дальеш тупо фильтр по времени
+
+select 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+from 
+
+(Select
+last_action_time
+from
+(SELECT 
+max(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as sub_left
+
+UNION ALL
+
+SELECT
+last_action_time
+from 
+(SELECT 
+min(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as sub_right
+ORDER BY 
+last_action_time) as first_last
+LEFT JOIN 
+(SELECT 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB3
+ORDER BY 
+    SUB3.created_at) as SUB4
+    ON first_last.last_action_time = SUB4.created_at
+WHERE
+time_btwn_nxt IS NOT NULL
+ORDER BY 
+action_type 
+
+ПОПЫТКА 4:
+убрал самое первое значение:
+
+select 
+last_action_time
+from
+(select 
+last_action_time,
+ROW_NUMBER() OVER() AS row_number
+FROM 
+(SELECT 
+min(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as SUB2) as SUB3
+where
+row_number != 1
+
+ИТОГ4 (без первого значения):
+
+select 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+from 
+
+(Select
+last_action_time
+from
+(SELECT 
+max(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as sub_left
+
+UNION ALL
+
+SELECT
+last_action_time
+from 
+(select 
+last_action_time
+from
+(select 
+last_action_time,
+ROW_NUMBER() OVER() AS row_number
+FROM 
+(SELECT 
+min(created_at) as last_action_time
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB1
+GROUP BY 
+action_type) as SUB2) as SUB3
+where
+row_number != 1) as sub_right
+ORDER BY 
+last_action_time) as first_last
+LEFT JOIN 
+(SELECT 
+client_id,
+action_type,
+created_at,
+time_btwn_nxt
+FROM 
+(SELECT 
+    `test-devim.data.action`.client_id as client_id,
+    `test-devim.data.action`.action_type as action_type,
+    `test-devim.data.action`.created_at as created_at,
+    LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC) AS next_action,
+    TIMESTAMP_DIFF(LEAD(`test-devim.data.action`.created_at) OVER ( 
+    ORDER BY `test-devim.data.action`.created_at ASC), `test-devim.data.action`.created_at, second) as time_btwn_nxt
+FROM
+    `test-devim.data.action`
+) as SUB3
+ORDER BY 
+    SUB3.created_at) as SUB4
+    ON first_last.last_action_time = SUB4.created_at
+WHERE
+time_btwn_nxt IS NOT NULL AND
+time_btwn_nxt <=10
+ORDER BY 
+action_type 
+
+task3.csv - усложнили задачу

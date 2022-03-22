@@ -1,0 +1,21 @@
+1   cred_sum_cc_all               130
+ 2   mfo_inqs_count_month       
+ 3   all_closed_creds_sum_all      350
+ 4   bank_inqs_count_quarter       
+ 5   cred_max_overdue_max_ly       9000
+ 6   all_active_creds_sum_all     190
+ 7   mfo_last_days_all            
+ 8   cred_sum_cc_ly   18к с нулём        
+ 9   cred_sum_debt_all_all        90
+ 10  all_closed_creds_sum_ly        50
+ 11  mfo_cred_mean_sum_3lm       15к. есть распределение от 0 до 20к написать об этом 
+ 12  delay_more_sum_all          
+ 13  all_creds_count_all       построить
+ 14  cred_day_overdue_all_sum_all  17к с нулём
+ 15  cred_max_overdue_max_3lm     20к с нулём
+ 16  mfo_closed_count_ly          
+ 17  cred_sum_overdue_cc_all       
+ 18  count_overdue_all_3lm       21к с нулём
+ 19  all_creds_count_lm          
+       
+
